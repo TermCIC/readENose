@@ -1,6 +1,10 @@
 from settings import *
 import numpy as np
+import time
+import threading
+import queue
 
+measure_duration = 20
 
 def reg(sensor_data, time_data):
     # Convert time_data to a NumPy array
@@ -26,71 +30,107 @@ def predict(slopes, time_pass):
     return predictions
 
 
-def sampling(duration, wait, slopes=None):
-    # Set the serial connection to the appropriate COM port
-    try:
-        ser = serial.Serial(working_port, 9600)
-        print(f"Using COM port: {working_port}")
-    except (serial.SerialException, OSError) as e:
-        print(f"Failed to open serial port {working_port}. Error: {e}")
-        exit(1)
+def sampling_thread(working_port, duration, wait, slopes=None):
+    """
+    This function runs the sampling process in a separate thread.
+    """
+    result_queue = queue.Queue()
+    def sampling_task():
+        ports = read_port_from_file()
+        ports[working_port]["log"] = []
+        save_port_to_file(ports)
+        # Set the serial connection to the appropriate COM port
+        try:
+            ser = serial.Serial(working_port, 9600)
+            ports = read_port_from_file()
+            ports[working_port]["log"].append(f"Using COM port: {working_port}")
+            save_port_to_file(ports)
+        except (serial.SerialException, OSError) as e:
+            ports = read_port_from_file()
+            ports[working_port]["log"].append(f"Failed to open serial port {working_port}. Error: {e}")
+            save_port_to_file(ports)
+            return
 
-    print(f"Wait for {wait} seconds before sampling...")
-    for i in range(wait):
-        print(f"{i + 1}/{wait}")
-        time.sleep(1)
+        ports = read_port_from_file()
+        ports[working_port]["log"].append(f"Wait for {wait} seconds before sampling...")
+        save_port_to_file(ports)
+        for i in range(wait):
+            ports = read_port_from_file()
+            ports[working_port]["log"].append(f"{i + 1}/{wait}")
+            save_port_to_file(ports)
+            time.sleep(1)
 
-    print(f"Sampling started...")
+        ports = read_port_from_file()
+        ports[working_port]["log"].append(f"Sampling started...")
+        save_port_to_file(ports)
+        time_data = []
+        sensor_data = [[] for _ in range(13)]
+        start_time = time.time()
+        records = []
+        intercept_values = [None for _ in range(13)]
 
-    time_data = []
-    sensor_data = [[] for _ in range(13)]
-    start_time = time.time()
-    records = []
-    intercept_values = [None for _ in range(13)]
-    while time.time() - start_time < (duration + 5):
-        if ser.in_waiting > 0:
-            line = ser.readline()
-            try:
-                time_remaining = int((duration + 5) - (time.time() - start_time))
-                decoded_line = line.decode('utf-8').rstrip()
-                data = [float(x) for x in decoded_line.split(",")]
-                if len(data) == 13:
-                    records.append(data)
+        while time.time() - start_time < (duration + 5):
+            if ser.in_waiting > 0:
+                line = ser.readline()
+                try:
+                    time_remaining = int((duration + 5) - (time.time() - start_time))
+                    decoded_line = line.decode('utf-8').rstrip()
+                    data = [float(x) for x in decoded_line.split(",")]
+                    if len(data) == 13:
+                        ports = read_port_from_file()
+                        ports[working_port]["readings"] = {}
+                        for r in range(len(data)):
+                            ports[working_port]["readings"][sensor_list[r]] = data[r]
+                        save_port_to_file(ports)
+                        records.append(data)
 
-                if len(records) == 10:
-                    time_pass = time.time() - start_time
-                    median = np.median(records, axis=0).tolist()
-                    epsilon = 1e-10
-                    for i in range(9):
-                        median[i] = np.log(max(median[i], epsilon))
-                    for i in range(9, 13):
-                        median[i] = np.log(max(median[i], epsilon))
+                    if len(records) == 10:
+                        time_pass = time.time() - start_time
+                        median = np.median(records, axis=0).tolist()
+                        epsilon = 1e-10
+                        for i in range(9):
+                            median[i] = np.log(max(median[i], epsilon))
+                        for i in range(9, 13):
+                            median[i] = np.log(max(median[i], epsilon))
 
-                    adjusted_median = median
-                    for i in range(13):
-                        if intercept_values[i] is None:
-                            intercept_values[i] = median[i]
+                        adjusted_median = median
+                        for i in range(13):
+                            if intercept_values[i] is None:
+                                intercept_values[i] = median[i]
 
-                        adjusted_median[i] = median[i] - intercept_values[i]
+                            adjusted_median[i] = median[i] - intercept_values[i]
 
-                        if slopes:
-                            predictions = predict(slopes, time_pass)
-                            adjusted_median[i] -= predictions[i]
+                            if slopes:
+                                predictions = predict(slopes, time_pass)
+                                adjusted_median[i] -= predictions[i]
 
-                    time_data.append(time_pass)
+                        time_data.append(time_pass)
 
-                    for i in range(13):
-                        sensor_data[i].append(adjusted_median[i])
+                        for i in range(13):
+                            sensor_data[i].append(adjusted_median[i])
 
-                    formatted_median = [f"{value:.4f}" for value in adjusted_median]
-                    print(f"Median values: {formatted_median}; {time_remaining} seconds left...")
-                    records = []
+                        formatted_median = [f"{value:.4f}" for value in adjusted_median]
+                        ports = read_port_from_file()
+                        if ports[working_port].get("log"):
+                            ports[working_port]["log"].append(f"Median values: {formatted_median}; {time_remaining} seconds left...")
+                        else:
+                            ports[working_port]["log"] = [f"Median values: {formatted_median}; {time_remaining} seconds left..."]
+                        save_port_to_file(ports)
+                        records = []
 
-            except ValueError:
-                print("ValueError - could not convert data to float:", line)
-            except UnicodeDecodeError:
-                print("UnicodeDecodeError - raw data:", line)
+                except ValueError:
+                    print("ValueError - could not convert data to float:", line)
+                except UnicodeDecodeError:
+                    print("UnicodeDecodeError - raw data:", line)
 
-    ser.close()
-    print("Serial connection closed.")
-    return sensor_data, time_data
+        ser.close()
+        ports = read_port_from_file()
+        ports[working_port]["log"].append(f"Serial connection closed.")
+        ports[working_port]["sensor_data"] = sensor_data
+        ports[working_port]["time_data"] = time_data
+        save_port_to_file(ports)
+
+    # Start the sampling task in a separate thread
+    thread = threading.Thread(target=sampling_task, daemon=True)
+    thread.start()
+    

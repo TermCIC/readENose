@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>E-Nose Reader (by Dr. Chun-I Chiu)</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+      }
+
+      header {
+        background-color: green;
+        color: white;
+        text-align: center;
+      }
+
+      .container {
+        display: flex;
+        height: calc(100vh - 0px);
+      }
+
+      .left-panel {
+        flex: 1;
+        overflow-y: auto;
+        border-right: 1px solid #ccc;
+        padding: 20px;
+        box-sizing: border-box;
+      }
+
+      .right-panel {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        box-sizing: border-box;
+        background-color: #f9f9f9;
+      }
+
+      .sensor-box {
+        border: 1px solid #ccc;
+        padding: 10px;
+        margin: 10px 0;
+        border-radius: 5px;
+        font-size: 16px;
+        text-align: left;
+      }
+
+      .task-box {
+        border: 1px solid #ccc;
+        font-size: 16px;
+        color: #555;
+        padding: 10px;
+        background-color: #fff;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        margin-bottom: 10px;
+      }
+
+      button {
+        display: block;
+        margin: 0 auto 20px auto;
+        padding: 10px 20px;
+        font-size: 16px;
+        background-color: green;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+      }
+
+      button:hover {
+        background-color: darkgreen;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="left-panel">
+        <strong>Please select sensor...</strong>
+        <div id="sensorContainer"></div>
+      </div>
+      <div class="right-panel">
+        <div id="sensorStatusContainer">
+            <Strong>Sensor Status</Strong>
+            <div id="sensorStatusBox"></div> <!-- Displays the selected sensor's status -->
+        </div>
+        <div id="logContainer">
+            <br>
+            <Strong>Log</Strong>
+            <div id="messageContainer"></div> <!-- Displays log details -->
+        </div>
+    </div>
+    </div>
+    <script type="text/javascript" src="../eel.js"></script>
+    <script src="./script.js"></script>
+  </body>
+</html>
