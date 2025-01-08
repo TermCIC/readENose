@@ -4,7 +4,7 @@ import time
 import threading
 import queue
 
-measure_duration = 20
+measure_duration = 100
 
 def reg(sensor_data, time_data):
     # Convert time_data to a NumPy array
